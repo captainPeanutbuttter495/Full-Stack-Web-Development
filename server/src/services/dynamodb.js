@@ -7,11 +7,12 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 
 const isLocal = process.env.NODE_ENV !== 'production';
+const dynamoEndpoint = process.env.DYNAMODB_ENDPOINT || 'http://localhost:8000';
 
 const client = new DynamoDBClient(
   isLocal
     ? {
-        endpoint: 'http://localhost:8000',
+        endpoint: dynamoEndpoint,
         region: 'local',
         credentials: {
           accessKeyId: 'local',
