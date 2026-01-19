@@ -17,7 +17,7 @@ Resources:
   UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: user
+      TableName: counter-app-users
       AttributeDefinitions:
         - AttributeName: username
           AttributeType: S
@@ -25,6 +25,23 @@ Resources:
         - AttributeName: username
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+
+  # HTTP API Gateway (created first, no CloudFront dependency)
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - Cookie
+        AllowCredentials: false
 
   # Lambda Function
   ApiFunction:
@@ -37,35 +54,18 @@ Resources:
             TableName: !Ref UserTable
       Environment:
         Variables:
-          JWT_SECRET: '{{resolve:ssm:/counter-app/jwt-secret}}'
-          FRONTEND_URL: !Sub 'https://${CloudFrontDistribution.DomainName}'
+          JWT_SECRET: '{{resolve:ssm:/counter-app/production/jwt-secret}}'
+          DYNAMODB_TABLE: counter-app-users
       Events:
         Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
 
-  # HTTP API Gateway
-  HttpApi:
-    Type: AWS::Serverless::HttpApi
-    Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - !Sub 'https://${CloudFrontDistribution.DomainName}'
-        AllowMethods:
-          - GET
-          - POST
-          - OPTIONS
-        AllowHeaders:
-          - Content-Type
-          - Authorization
-        AllowCredentials: true
-
   # S3 Bucket for Frontend
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'counter-app-frontend-${AWS::AccountId}'
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
@@ -80,7 +80,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub 'counter-app-oac-${AWS::AccountId}'
+        Name: !Sub 'counter-app-oac-${AWS::StackName}'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -88,6 +88,9 @@ Resources:
   # CloudFront Distribution
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - HttpApi
+      - FrontendBucket
     Properties:
       DistributionConfig:
         Enabled: true
